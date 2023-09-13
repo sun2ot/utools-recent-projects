@@ -76,6 +76,13 @@ const pathDescriptionMap: { [key: string]: () => StringByOS } = {
     'chromium': () => {
         return {}
     },
+    'firefox': () => {
+        return {
+            win32: `${systemHome()}\\AppData\\Roaming\\Mozilla\\Firefox\\Profiles\\xxx.default-release\\`,
+            darwin: `${systemHome()}/Library/Application Support/Firefox/Profiles/xxx.default-release-xxx/`,
+            linux: `${systemHome()}/.mozilla/firefox/xxx.default-release/`,
+        }
+    },
     'chrome': () => {
         return {
             win32: `${systemHome()}\\AppData\\Local\\Google\\Chrome\\User Data\\Default\\`,
@@ -138,13 +145,6 @@ const pathDescriptionMap: { [key: string]: () => StringByOS } = {
             win32: `${systemHome()}\\AppData\\Local\\liebao\\User Data\\Default\\`,
         }
     },
-    'firefox': () => {
-        return {
-            win32: `${systemHome()}\\AppData\\Roaming\\Mozilla\\Firefox\\Profiles\\xxx.default-release\\`,
-            darwin: `${systemHome()}/Library/Application Support/Firefox/Profiles/xxx.default-release-xxx/`,
-            linux: `${systemHome()}/.mozilla/firefox/xxx.default-release/`,
-        }
-    },
     'deepin': () => {
         return {
             linux: `${systemHome()}/.config/browser/Default/`,
@@ -155,19 +155,24 @@ const pathDescriptionMap: { [key: string]: () => StringByOS } = {
             win32: `${systemHome()}\\AppData\\Local\\xbbrowser\\User Data\\Default\\`,
         }
     },
-    'safari': () => {
+    'twinkstar': () => {
         return {
-            darwin: `${systemHome()}/Library/Safari/`,
+            win32: `${systemHome()}\\AppData\\Local\\Twinkstar\\User Data\\Default\\`,
         }
     },
     'huawei': () => {
         return {
-            win32: `${systemHome()}\\AppData\\Local\\CatsxpSoftware\\Catsxp-Browser\\User Data\\Default`,
+            win32: `${systemHome()}\\AppData\\Local\\CatsxpSoftware\\Catsxp-Browser\\User Data\\Default\\`,
         }
     },
     'catsxp': () => {
         return {
-            win32: `${systemHome()}\\AppData\\Local\\Huawei\\HuaweiBrowser\\User Data\\Default`,
+            win32: `${systemHome()}\\AppData\\Local\\Huawei\\HuaweiBrowser\\User Data\\Default\\`,
+        }
+    },
+    'safari': () => {
+        return {
+            darwin: `${systemHome()}/Library/Safari/`,
         }
     },
 }
