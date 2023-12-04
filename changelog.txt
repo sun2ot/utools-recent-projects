@@ -1,3 +1,6 @@
+3.12.3
+增加Ctrl+C、Ctrl+B用于复制路径和标题，相应的，macOS为Command+C、Command+B
+
 3.12.1
 修复 Twinkstar 配置不全导致插件白屏
 

@@ -35,6 +35,7 @@ $packageJson=@"
   "dependencies": {
     "bplist-parser": "^0.3.2",
     "licia": "^1.37.0",
+    "mousetrap": "^1.6.5",
     "nano-jsx": "^0.0.34",
     "nanobar": "^0.4.2",
     "pinyin-pro": "^3.11.0",

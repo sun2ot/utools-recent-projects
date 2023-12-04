@@ -3,7 +3,7 @@ import {shell} from 'electron'
 import {contain, isEmpty, isEqual, isNil} from 'licia'
 import {Context} from './Context'
 import {i18n, sentenceKey} from './i18n'
-import {getName, initLanguage, platformFromUtools} from './Utils'
+import {getName, initLanguage, initShortcut, platformFromUtools} from './Utils'
 import {signCalculateAsync} from './utils/files/SignCalculate'
 import {errorNotify, infoNotify} from './utils/log/NotificationLog'
 import {existsToRead, nonExistsToRead} from './utils/promise/FsPromise'
@@ -266,6 +266,7 @@ export abstract class ArgsImpl<I extends Item> implements Args<I> {
     enter(action: Action, callback: Callback<I>): void {
         this.context = Context.get()
         initLanguage(this.context)
+        initShortcut(this.context)
     }
 
     /**

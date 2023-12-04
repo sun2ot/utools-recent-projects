@@ -7,6 +7,7 @@ import WinReg from 'winreg'
 import {Context} from './Context'
 import {i18n, sentenceKey} from './i18n'
 import {DescriptionGetter, NameGetter, Platform} from './Types'
+import Mousetrap from "mousetrap";
 
 /**
  * 字符比较, 用于在 array.sort() 使用
@@ -199,6 +200,25 @@ export const initLanguage: (context?: Context) => void = context => {
     } else {
         i18n.locale(context.languageSetting)
     }
+}
+
+export const initShortcut: (context?: Context) => void = context => {
+    let shortcut = 'ctrl'
+    if (platformFromUtools() == Platform.darwin) {
+        shortcut = 'command+s'
+    }
+    Mousetrap.bind(`${shortcut}+c`, e => {
+        let content = document.querySelector('#root .list .list-item-selected .list-item-description')?.textContent
+        if (!isEmpty(content)) {
+            utools.copyText(content!)
+        }
+    })
+    Mousetrap.bind(`${shortcut}+b`, e => {
+        let content = document.querySelector('#root .list .list-item-selected .list-item-title')?.textContent
+        if (!isEmpty(content)) {
+            utools.copyText(content!)
+        }
+    })
 }
 
 export const extensionFilter: (name: string, extension: string) => [{ name: string, extensions: Array<string> }] = (name, extension) => {

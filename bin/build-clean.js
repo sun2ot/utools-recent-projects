@@ -13,6 +13,7 @@ let paths = fg.sync([
   `${nodeModulesPath}/**/*.(md|ts|json|map|svg)`,
   `${nodeModulesPath}/**/(LICENSE|LICENCE|AUTHORS)`,
   `${nodeModulesPath}/**/.(editorconfig|eslint|npmrc|npmignore|travis|devcontainer|nojekyll|gitattributes|prettierrc)*`,
+  `${nodeModulesPath}/**/*.(sublime-project)`,
   `${nodeModulesPath}/big-integer/BigInteger.min.js`,
   `${nodeModulesPath}/nano-jsx/(esm|bundles|readme)`,
   `${nodeModulesPath}/nanobar/(brand|demos)`,
@@ -27,6 +28,9 @@ let paths = fg.sync([
   `${nodeModulesPath}/toastify-js/src/toastify-es.js`,
   `${nodeModulesPath}/toastify-js/index.html`,
   `${nodeModulesPath}/winreg/test`,
+  `${nodeModulesPath}/mousetrap/tests`,
+  `${nodeModulesPath}/mousetrap/plugins`,
+  `${nodeModulesPath}/mousetrap/Gruntfile.js`,
   `!${nodeModulesPath}/**/package.json`,
 ], {unique: true, dot: true, onlyFiles: false})
 let count = 0
