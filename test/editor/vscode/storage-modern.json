@@ -1,0 +1,34 @@
+{
+  "profileAssociations": {
+    "workspaces": {
+      "file:///Users/lanyuanxiaoyao/notes": "__default__profile__",
+      "file:///Users/lanyuanxiaoyao/notes-server": "__default__profile__"
+    },
+    "emptyWindows": {}
+  },
+  "windowsState": {
+    "lastActiveWindow": {
+      "folder": "file:///Users/lanyuanxiaoyao/notes"
+    },
+    "openedWindows": [
+      {
+        "folder": "file:///Users/lanyuanxiaoyao/notes-remote"
+      }
+    ]
+  },
+  "backupWorkspaces": {
+    "workspaces": [
+      {
+        "workspace": {
+          "id": "5ab2b6c0978df38fb486c7603913361a",
+          "configPath": "file:///Users/lanyuanxiaoyao/notes.code-workspace"
+        }
+      }
+    ],
+    "folders": [
+      {
+        "folderUri": "file:///Users/lanyuanxiaoyao/notes"
+      }
+    ]
+  }
+}

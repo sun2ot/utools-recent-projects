@@ -739,7 +739,7 @@ export abstract class ApplicationConfigAndExecutorImpl<P extends ProjectItemImpl
 
 export abstract class ApplicationCacheConfigAndExecutorImpl<P extends ProjectItemImpl> extends ApplicationConfigAndExecutorImpl<P> implements ApplicationCache<P> {
     cache: Array<P> = []
-    private sign: string = ''
+    protected sign: string = ''
 
     abstract generateCacheProjectItems(context: Context): Promise<Array<P>>
 

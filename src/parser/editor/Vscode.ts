@@ -1,6 +1,6 @@
 import {readFile, stat} from 'fs/promises'
 import {isEmpty, isNil, startWith, unique, Url} from 'licia'
-import {parse} from 'path'
+import {join, parse} from 'path'
 import {Context} from '../../Context'
 import {i18n, sentenceKey} from '../../i18n'
 import {
@@ -17,6 +17,8 @@ import {
 import {configExtensionFilter, existsOrNot, generateStringByOS, systemUser} from '../../Utils'
 import {generateFilePathIndex} from '../../utils/index-generator/FilePathIndex'
 import {generatePinyinIndex} from '../../utils/index-generator/PinyinIndex'
+import {signCalculateAsync} from '../../utils/files/SignCalculate'
+import {existsToRead} from '../../utils/promise/FsPromise'
 import {queryFromSqlite} from '../../utils/sqlite/SqliteExecutor'
 
 const VSCODE: string = 'vscode'
@@ -24,6 +26,72 @@ const VSCODE_1640: string = 'vscode-1640'
 const HOMEPAGE: string = 'https://code.visualstudio.com/'
 
 export class VscodeProjectItemImpl extends DatetimeProjectItemImpl {}
+
+/**
+ * 将新版 globalStorage/storage.json 与旧版 Code/storage.json 统一归一化为 entries 数组
+ * 新版 (VSCode >= 1.64): profileAssociations.workspaces / windowsState / backupWorkspaces
+ * 旧版 (< 1.64): openedPathsList.entries
+ */
+export const normalizeStorageEntries: (storage: any) => Array<any> = storage => {
+    let entries: Array<any> = []
+    if (isNil(storage)) return entries
+    // 旧版结构: Code/storage.json
+    let legacy = storage?.openedPathsList?.entries
+    if (!isNil(legacy)) entries.push(...legacy)
+    // 新版主源: profileAssociations.workspaces (对象 {uri: profileId})
+    let workspaces = storage?.profileAssociations?.workspaces
+    if (!isNil(workspaces)) Object.keys(workspaces).forEach(uri => entries.push({folderUri: uri}))
+    // windowsState.lastActiveWindow
+    let last = storage?.windowsState?.lastActiveWindow
+    if (!isNil(last?.folder)) entries.push({folderUri: last.folder})
+    if (!isNil(last?.workspace)) {
+        entries.push(typeof last.workspace === 'string'
+            ? {workspace: {configPath: last.workspace}}
+            : last.workspace)
+    }
+    // windowsState.openedWindows (历史形态 folder | workspace 两种)
+    let opened = storage?.windowsState?.openedWindows
+    if (!isNil(opened)) {
+        opened.forEach(w => {
+            if (!isNil(w?.folder)) {
+                entries.push({folderUri: w.folder})
+            } else if (!isNil(w?.workspace)) {
+                entries.push(typeof w.workspace === 'string'
+                    ? {workspace: {configPath: w.workspace}}
+                    : w.workspace)
+            } else if (!isNil(w?.file)) {
+                entries.push({fileUri: w.file})
+            }
+        })
+    }
+    // backupWorkspaces.folders / workspaces (已是 folderUri/workspace 结构, 直接透传)
+    let backupFolders = storage?.backupWorkspaces?.folders
+    if (!isNil(backupFolders)) entries.push(...backupFolders)
+    let backupWorkspaces = storage?.backupWorkspaces?.workspaces
+    if (!isNil(backupWorkspaces)) entries.push(...backupWorkspaces)
+    return entries
+}
+
+/**
+ * 按 uri (解码后小写, 兼容 Windows 盘符大小写差异) 去重, 保留首次出现顺序
+ */
+export const dedupEntries: (entries: Array<any>) => Array<any> = entries => {
+    let seen = new Set<string>(), result: Array<any> = []
+    entries.forEach(entry => {
+        let uri = entry?.folderUri ?? entry?.fileUri ?? entry?.workspace?.configPath
+        if (isNil(uri) || isEmpty(uri)) return
+        let key: string
+        try {
+            key = decodeURIComponent(uri).toLowerCase()
+        } catch (error) {
+            key = uri.toLowerCase()
+        }
+        if (seen.has(key)) return
+        seen.add(key)
+        result.push(entry)
+    })
+    return result
+}
 
 const parseEntries: (entries: any, context: Context, openInNew: boolean, isWindows: boolean, icon: string, executor: string, sortByAccessTime: boolean | undefined) => Promise<Array<VscodeProjectItemImpl>> = async (entries, context, openInNew, isWindows, defaultIcon, executor, sortByAccessTime) => {
     let items: Array<VscodeProjectItemImpl> = []
@@ -189,15 +257,15 @@ export class Vscode1640ApplicationImpl extends ApplicationCacheConfigAndExecutor
             GROUP_EDITOR,
             () => `${i18n.t(sentenceKey.configFileAt)} ${this.defaultConfigPath()}, ${i18n.t(sentenceKey.executorFileAt)} ${this.defaultExecutorPath()}`,
             undefined,
-            'state.vscdb',
+            'storage.json',
         )
     }
 
     override defaultConfigPath(): string {
         return generateStringByOS({
-            win32: `C:\\Users\\${systemUser()}\\AppData\\Roaming\\Code\\User\\globalStorage\\state.vscdb`,
-            darwin: `/Users/${systemUser()}/Library/Application Support/Code/User/globalStorage/state.vscdb`,
-            linux: `/home/${systemUser()}/.config/Code/User/globalStorage/state.vscdb`,
+            win32: `C:\\Users\\${systemUser()}\\AppData\\Roaming\\Code\\User\\globalStorage\\storage.json`,
+            darwin: `/Users/${systemUser()}/Library/Application Support/Code/User/globalStorage/storage.json`,
+            linux: `/home/${systemUser()}/.config/Code/User/globalStorage/storage.json`,
         })
     }
 
@@ -212,21 +280,75 @@ export class Vscode1640ApplicationImpl extends ApplicationCacheConfigAndExecutor
     override configSettingItemProperties(): SettingProperties {
         return {
             ...super.configSettingItemProperties(),
-            filters: configExtensionFilter('vscdb'),
+            filters: configExtensionFilter('json').concat(configExtensionFilter('vscdb')),
         }
     }
 
     async generateCacheProjectItems(context: Context): Promise<Array<VscodeProjectItemImpl>> {
+        // 双数据源兼容: 配置路径以 .vscdb 结尾 → sqlite (旧版 state.vscdb); 其余 → JSON (storage.json)
+        return this.config.endsWith('.vscdb')
+            ? this.generateFromVscdb(context)
+            : this.generateFromJson(context)
+    }
+
+    private async generateFromVscdb(context: Context): Promise<Array<VscodeProjectItemImpl>> {
+        let entries: Array<any> = []
         // language=SQLite
         let results = await queryFromSqlite(this.config, 'select value as result from ItemTable where key = \'history.recentlyOpenedPathsList\'')
         if (!isEmpty(results)) {
-            let row = results[0]
-            let source = row['result'] as string
+            let source = results[0]['result'] as string
             if (!isEmpty(source)) {
-                return await parseEntries(JSON.parse(source)['entries'], context, this.openInNew, this.isWindows, this.icon, this.executor, this.sortByAccessTime)
+                try {
+                    entries.push(...(JSON.parse(source)['entries'] ?? []))
+                } catch (error) {
+                    console.error('Parse history.recentlyOpenedPathsList failure', this.config, error)
+                }
             }
         }
-        return []
+        // VSCode >= 1.64 主数据源已迁移: 自动读取同目录 storage.json 补充 (存量 vscdb 配置免迁移)
+        let jsonPath = join(parse(this.config).dir, 'storage.json')
+        if (await existsToRead(jsonPath)) {
+            let storage = await this.readStorageJson(jsonPath)
+            if (!isNil(storage)) entries.push(...normalizeStorageEntries(storage))
+        }
+        if (isEmpty(entries)) return []
+        return await parseEntries(dedupEntries(entries), context, this.openInNew, this.isWindows, this.icon, this.executor, this.sortByAccessTime)
+    }
+
+    private async generateFromJson(context: Context): Promise<Array<VscodeProjectItemImpl>> {
+        let storage = await this.readStorageJson(this.config)
+        if (isNil(storage)) return []
+        let entries = dedupEntries(normalizeStorageEntries(storage))
+        if (isEmpty(entries)) return []
+        return await parseEntries(entries, context, this.openInNew, this.isWindows, this.icon, this.executor, this.sortByAccessTime)
+    }
+
+    private async readStorageJson(path: string): Promise<any | undefined> {
+        try {
+            let buffer = await readFile(path)
+            if (isNil(buffer)) return undefined
+            let content = buffer.toString()
+            if (isEmpty(content)) return undefined
+            return JSON.parse(content)
+        } catch (error) {
+            console.error('Parse storage.json failure', path, error)
+            return undefined
+        }
+    }
+
+    // 实际数据源: 配置为 vscdb 时, 若同目录存在 storage.json, 以其为准计算缓存签名, 保证新数据能触发刷新
+    private async effectiveSourcePath(): Promise<string> {
+        if (this.config.endsWith('.vscdb')) {
+            let jsonPath = join(parse(this.config).dir, 'storage.json')
+            if (await existsToRead(jsonPath)) return jsonPath
+        }
+        return this.config
+    }
+
+    override async isNew(): Promise<boolean> {
+        let last = this.sign
+        this.sign = await signCalculateAsync(await this.effectiveSourcePath())
+        return isEmpty(last) ? true : this.sign !== last
     }
 
     openInNewId(nativeId: string) {
